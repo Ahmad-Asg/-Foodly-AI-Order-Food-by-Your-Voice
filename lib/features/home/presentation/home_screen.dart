@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../ai_chat/presentation/ai_chat_screen.dart';
-import '../../ai_voice/presentation/ai_voice_screen.dart';
+import '../../ai_chat/presentation/ai_voice_screen.dart';
 import '../../../core/theme/app_theme.dart';
 
 class HomeScreen extends StatelessWidget {

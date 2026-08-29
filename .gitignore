@@ -46,3 +46,9 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Local environment variables and Node.js dependencies
+.env
+.env.*
+!.env.example
+**/node_modules/
