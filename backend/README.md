@@ -110,3 +110,45 @@ This resets only the temporary Foodly AI Restaurant categories and menu, then re
 ## If something fails
 
 Send the terminal error or a screenshot, but remove your MongoDB URI and password first.
+
+## Authentication (Phase 6)
+
+The API also provides secure account endpoints:
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| POST | `/api/auth/register` | Creates an account and returns a JWT. |
+| POST | `/api/auth/login` | Signs in and returns a JWT. |
+| GET | `/api/auth/me` | Returns the signed-in user; requires a Bearer token. |
+| PATCH | `/api/auth/me` | Updates the signed-in user's name; requires a Bearer token. |
+
+Passwords are hashed with bcrypt before storage. The app stores the JWT in encrypted mobile storage and validates it with `/api/auth/me` each time it starts.
+
+## STEP — Add the private JWT settings
+
+### WHERE
+
+VS Code, in the existing private file `backend/.env`.
+
+### COMMAND
+
+In a VS Code terminal, run this command once to generate a random secret:
+
+```powershell
+node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
+```
+
+### ACTION
+
+Copy the generated value. In `backend/.env`, add these two lines below `MONGODB_URI`:
+
+```env
+JWT_SECRET=paste-the-generated-value-here
+JWT_EXPIRES_IN=7d
+```
+
+Save the file. Do not share the generated value, and do not add it to `.env.example`.
+
+### EXPECTED RESULT
+
+Running `npm start` starts the API without a JWT configuration error. The login screen will then work when you run Flutter with the `FOODLY_API_BASE_URL` command above.

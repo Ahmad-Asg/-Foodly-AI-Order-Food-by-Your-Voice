@@ -16,9 +16,13 @@ class FoodlyApiException implements Exception {
 /// A small API client for the Phase 5 single-restaurant endpoints.
 /// It is intentionally not connected to the mock Phase 3 screens yet.
 class FoodlyApiService {
-  FoodlyApiService({http.Client? client}) : _client = client ?? http.Client();
+  FoodlyApiService({
+    http.Client? client,
+    this._tokenProvider,
+  }) : _client = client ?? http.Client();
 
   final http.Client _client;
+  final Future<String?> Function()? _tokenProvider;
 
   Future<Map<String, dynamic>> getRestaurant() => _getObject('restaurant');
 
@@ -39,6 +43,26 @@ class FoodlyApiService {
   Future<Map<String, dynamic>> getFood(String id) => _getObject('foods/$id');
 
   Future<Map<String, dynamic>> getMenu() => _getObject('menu');
+
+  Future<Map<String, dynamic>> register({
+    required String name,
+    required String email,
+    required String password,
+  }) => _postObject('auth/register', body: {
+    'name': name,
+    'email': email,
+    'password': password,
+  });
+
+  Future<Map<String, dynamic>> login({
+    required String email,
+    required String password,
+  }) => _postObject('auth/login', body: {
+    'email': email,
+    'password': password,
+  });
+
+  Future<Map<String, dynamic>> getCurrentUser() => _getObject('auth/me');
 
   Future<bool> isHealthy() async {
     final response = await _get('health');
@@ -76,7 +100,43 @@ class FoodlyApiService {
       queryParameters: queryParameters.isEmpty ? null : queryParameters,
     );
 
-    final response = await _client.get(uri);
+    final response = await _client.get(uri, headers: await _headers());
+    return _parseResponse(response);
+  }
+
+  Future<Map<String, dynamic>> _postObject(
+    String path, {
+    required Map<String, dynamic> body,
+  }) async {
+    final response = await _client.post(
+      _uri(path),
+      headers: await _headers(),
+      body: jsonEncode(body),
+    );
+    final parsed = _parseResponse(response);
+    final data = parsed['data'];
+    if (data is! Map<String, dynamic>) {
+      throw const FoodlyApiException('The server returned an invalid object response.');
+    }
+    return data;
+  }
+
+  Uri _uri(String path, {Map<String, String> queryParameters = const {}}) {
+    final baseUri = Uri.parse(FoodlyApiConfig.baseUrl);
+    return baseUri.replace(
+      path: '${baseUri.path.replaceFirst(RegExp(r'/$'), '')}/$path',
+      queryParameters: queryParameters.isEmpty ? null : queryParameters,
+    );
+  }
+
+  Future<Map<String, String>> _headers() async {
+    final headers = <String, String>{'Content-Type': 'application/json'};
+    final token = await _tokenProvider?.call();
+    if (token != null && token.isNotEmpty) headers['Authorization'] = 'Bearer $token';
+    return headers;
+  }
+
+  Map<String, dynamic> _parseResponse(http.Response response) {
     final body = jsonDecode(response.body);
     if (body is! Map<String, dynamic>) {
       throw const FoodlyApiException('The server returned an invalid response.');
