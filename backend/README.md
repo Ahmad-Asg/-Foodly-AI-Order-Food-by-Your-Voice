@@ -1,114 +1,112 @@
-# Foodly AI database foundation
+# Foodly AI backend
 
-This folder contains **Phase 4 only**: MongoDB/Mongoose data schemas and a development seed for one fictional restaurant, **Foodly AI Restaurant**. It does not contain an Express server, APIs, login, OpenAI integration, or Flutter integration.
+This folder contains the Phase 4 database foundation and the Phase 5 Express API for **one** fictional restaurant: **Foodly AI Restaurant** in Faisalabad. It deliberately contains no authentication, checkout, OpenAI, AI chat, voice, or ordering logic.
 
-## Data model
+## API endpoints
 
-- One `Restaurant` record, enforced by the unique `isPrimary` flag
-- Nine `Category` records and 54 `FoodItem` records belonging to that restaurant
-- `User` with non-sensitive food preferences
-- `Cart` and `Order` items that reference real `FoodItem` IDs
-- `Review`, `Favorite`, `Conversation`, and `Message` structures
+Every API response uses `{ "success": true, "data": ... }` for data or `{ "success": false, "message": "..." }` for errors.
 
-Prices are PKR numbers. A future backend must retrieve food items by ID and calculate prices from MongoDB; it must not trust names or prices supplied by a user or AI response.
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| GET | `/api/health` | Confirms the API is running. |
+| GET | `/api/restaurant` | Returns the one Foodly AI Restaurant. |
+| GET | `/api/categories` | Returns its menu categories. |
+| GET | `/api/foods` | Returns available food items. |
+| GET | `/api/foods/:id` | Returns one food item by MongoDB ID. |
+| GET | `/api/menu` | Returns categories with their food items. |
 
-## STEP 1 — Install Node.js
+Food filters may be combined:
 
-### WHAT WE ARE DOING
-
-Installing Node.js so the Mongoose schemas and seed command can run.
-
-### WHERE
-
-Browser, then PowerShell.
-
-### WHAT TO CLICK
-
-1. Open [nodejs.org](https://nodejs.org/).
-2. Download the **LTS** version for Windows.
-3. Run the installer and keep the default options.
-4. Close and reopen PowerShell after the installation finishes.
-
-### COMMAND
-
-```powershell
-node --version
-npm --version
+```text
+/api/foods?category=Burgers
+/api/foods?maxPrice=800
+/api/foods?spiceLevel=spicy
+/api/foods?category=Burgers&maxPrice=800&spiceLevel=spicy
 ```
 
-### EXPECTED RESULT
+`spiceLevel` accepts `none`, `mild`, `medium`, `hot`, `extra_hot`, or the beginner-friendly alias `spicy`.
 
-Both commands print version numbers.
+## Environment setup
 
-## STEP 2 — Create MongoDB Atlas database
-
-### WHAT WE ARE DOING
-
-Creating the cloud database where Foodly AI's one restaurant and menu will be stored.
-
-### WHERE
-
-Browser: [MongoDB Atlas](https://www.mongodb.com/atlas/database).
-
-### WHAT TO CLICK
-
-1. Sign in or create an Atlas account.
-2. Choose **Create** → **Database** and select the free tier if it is suitable for you.
-3. Create a database user under **Security** → **Database Access**. Save its username and password somewhere private.
-4. Under **Security** → **Network Access**, add your current IP address. For local development only, you may choose **Allow Access from Anywhere**.
-5. Open **Database** → **Connect** → **Drivers** → **Node.js**.
-6. Copy the connection string and replace `<password>` with your database-user password.
-
-## STEP 3 — Add your private connection string
-
-### WHAT WE ARE DOING
-
-Adding your Atlas connection string locally without committing it to Git.
-
-### WHERE
-
-VS Code.
-
-### FILE
-
-`backend/.env`
-
-### WHAT TO DO
-
-Copy `backend/.env.example`, rename the copy to `.env`, and replace its value with your complete Atlas connection string.
-
-### CODE
+Create the private file `backend/.env` from `.env.example`. It must contain your secret Atlas connection string and a port:
 
 ```env
 MONGODB_URI=your-complete-atlas-connection-string
+PORT=5000
 ```
 
-`backend/.env` is ignored by Git. Never paste its value into chat, source code, or GitHub.
+`backend/.env` is ignored by Git. Never commit or share its contents.
 
-## STEP 4 — Install database packages and seed the menu
+## STEP 1 — Start the backend
 
 ### WHERE
 
-PowerShell in the `backend` folder.
+VS Code terminal.
 
 ### COMMAND
 
 ```powershell
 cd D:\Projects\Foodly-AI-Order-Food-by-Your-Voice\backend
-npm install
-npm run seed
+npm start
 ```
 
 ### EXPECTED RESULT
 
-The final command reports a MongoDB connection and then:
-
 ```text
-Created 1 restaurant, 9 categories, and 54 food items.
+Connected to MongoDB database: foodly_ai
+Foodly AI API is running on port 5000.
 ```
 
-The seed command is repeatable. It resets the temporary Foodly AI Restaurant categories and menu before recreating them, so do not use it after making manual production menu edits.
+Keep this terminal open while testing the app. Press `Ctrl + C` in that terminal when you want to stop the server.
 
-## IF IT FAILS
+## STEP 2 — Check the API in your browser
 
-Send a screenshot or copy the full PowerShell error. Do not include your MongoDB connection string or password.
+### WHERE
+
+Browser on your PC.
+
+### URL
+
+```text
+http://localhost:5000/api/health
+```
+
+### EXPECTED RESULT
+
+```json
+{"success":true,"message":"Foodly AI API is running"}
+```
+
+## STEP 3 — Run Flutter on your physical Android phone
+
+Your phone and PC must be on the same Wi-Fi network. A real phone cannot use `localhost` to reach your PC.
+
+### WHERE
+
+VS Code terminal at the project root.
+
+### COMMAND
+
+```powershell
+cd D:\Projects\Foodly-AI-Order-Food-by-Your-Voice
+flutter run -d RF8X40FPK6Z --dart-define=FOODLY_API_BASE_URL=http://192.168.0.107:5000/api
+```
+
+### EXPECTED RESULT
+
+The app installs on your Samsung A15. `192.168.0.107` is this PC's current local network address. If your Wi-Fi changes, run `ipconfig` and use the IPv4 address shown for your active Wi-Fi adapter instead.
+
+The Phase 3 UI remains intentionally mock-based. The Flutter API client at `lib/core/services/foodly_api_service.dart` is ready for later screens to use these real endpoints.
+
+## Seed the development menu again
+
+```powershell
+cd D:\Projects\Foodly-AI-Order-Food-by-Your-Voice\backend
+npm run seed
+```
+
+This resets only the temporary Foodly AI Restaurant categories and menu, then recreates one restaurant, nine categories, and 54 food items. Do not run it after making manual production menu edits.
+
+## If something fails
+
+Send the terminal error or a screenshot, but remove your MongoDB URI and password first.
