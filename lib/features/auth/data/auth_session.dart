@@ -27,6 +27,8 @@ class AuthSession {
   final FlutterSecureStorage _storage;
   final FoodlyApiService _api;
 
+  FoodlyApiService get api => _api;
+
   Future<AuthUser?> restoreSession() async {
     final token = await _storage.read(key: _tokenKey);
     if (token == null || token.isEmpty) return null;
