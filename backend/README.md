@@ -1,6 +1,6 @@
 # Foodly AI backend
 
-This folder contains the Phase 4 database foundation and the Phase 5 Express API for **one** fictional restaurant: **Foodly AI Restaurant** in Faisalabad. It deliberately contains no authentication, checkout, OpenAI, AI chat, voice, or ordering logic.
+This folder contains the Foodly AI API for **one** fictional restaurant: **Foodly AI Restaurant** in Faisalabad. It includes the menu, secure account, cart, and mock ordering features used by the Flutter app. It deliberately contains no OpenAI, AI chat, voice, or real payment processing.
 
 ## API endpoints
 
@@ -14,6 +14,14 @@ Every API response uses `{ "success": true, "data": ... }` for data or `{ "succe
 | GET | `/api/foods` | Returns available food items. |
 | GET | `/api/foods/:id` | Returns one food item by MongoDB ID. |
 | GET | `/api/menu` | Returns categories with their food items. |
+| GET | `/api/cart` | Returns the signed-in user's cart; requires a Bearer token. |
+| POST | `/api/cart/items` | Adds a menu item to the signed-in user's cart. |
+| PATCH | `/api/cart/items/:foodItemId` | Changes an item quantity in the signed-in user's cart. |
+| DELETE | `/api/cart/items/:foodItemId` | Removes an item from the signed-in user's cart. |
+| DELETE | `/api/cart` | Empties the signed-in user's cart. |
+| POST | `/api/orders` | Creates a mock cash-on-delivery order from the signed-in user's cart. |
+| GET | `/api/orders` | Returns the signed-in user's orders. |
+| GET | `/api/orders/:id` | Returns one of the signed-in user's orders. |
 
 Food filters may be combined:
 
@@ -89,14 +97,14 @@ VS Code terminal at the project root.
 
 ```powershell
 cd D:\Projects\Foodly-AI-Order-Food-by-Your-Voice
-flutter run -d RF8X40FPK6Z --dart-define=FOODLY_API_BASE_URL=http://192.168.0.107:5000/api
+flutter run -d RF8X40FPK6Z --dart-define=FOODLY_API_BASE_URL=http://192.168.18.83:5000/api
 ```
 
 ### EXPECTED RESULT
 
 The app installs on your Samsung A15. `192.168.0.107` is this PC's current local network address. If your Wi-Fi changes, run `ipconfig` and use the IPv4 address shown for your active Wi-Fi adapter instead.
 
-The Phase 3 UI remains intentionally mock-based. The Flutter API client at `lib/core/services/foodly_api_service.dart` is ready for later screens to use these real endpoints.
+The app installs on your Samsung A15. Sign in, open **Menu**, add an item, open the cart button, and place a mock cash-on-delivery order. It will appear in **Orders**. If your Wi-Fi changes, run `ipconfig` and use the IPv4 address shown for your active Wi-Fi adapter instead.
 
 ## Seed the development menu again
 
