@@ -64,6 +64,27 @@ class FoodlyApiService {
 
   Future<Map<String, dynamic>> getCurrentUser() => _getObject('auth/me');
 
+  Future<Map<String, dynamic>> getCart() => _getObject('cart');
+
+  Future<Map<String, dynamic>> addCartItem({required String foodItemId, int quantity = 1}) =>
+      _postObject('cart/items', body: {'foodItemId': foodItemId, 'quantity': quantity});
+
+  Future<Map<String, dynamic>> updateCartItem({required String foodItemId, required int quantity}) =>
+      _sendObject('PATCH', 'cart/items/$foodItemId', body: {'quantity': quantity});
+
+  Future<Map<String, dynamic>> removeCartItem(String foodItemId) => _sendObject('DELETE', 'cart/items/$foodItemId');
+
+  Future<Map<String, dynamic>> clearCart() => _sendObject('DELETE', 'cart');
+
+  Future<Map<String, dynamic>> createOrder({required String deliveryAddress}) => _postObject(
+    'orders',
+    body: {'deliveryAddress': deliveryAddress, 'paymentMethod': 'cash_on_delivery'},
+  );
+
+  Future<List<dynamic>> getOrders() => _getList('orders');
+
+  Future<Map<String, dynamic>> getOrder(String id) => _getObject('orders/$id');
+
   Future<bool> isHealthy() async {
     final response = await _get('health');
     return response['success'] == true;
@@ -108,11 +129,19 @@ class FoodlyApiService {
     String path, {
     required Map<String, dynamic> body,
   }) async {
-    final response = await _client.post(
-      _uri(path),
-      headers: await _headers(),
-      body: jsonEncode(body),
-    );
+    return _sendObject('POST', path, body: body);
+  }
+
+  Future<Map<String, dynamic>> _sendObject(
+    String method,
+    String path, {
+    Map<String, dynamic>? body,
+  }) async {
+    final request = http.Request(method, _uri(path));
+    request.headers.addAll(await _headers());
+    if (body != null) request.body = jsonEncode(body);
+    final streamedResponse = await _client.send(request);
+    final response = await http.Response.fromStream(streamedResponse);
     final parsed = _parseResponse(response);
     final data = parsed['data'];
     if (data is! Map<String, dynamic>) {
