@@ -1,7 +1,9 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
 
 import { app } from './app.js';
 import { connectDatabase } from './config/database.js';
+
+dotenv.config({ override: true });
 
 const port = Number(process.env.PORT) || 5000;
 

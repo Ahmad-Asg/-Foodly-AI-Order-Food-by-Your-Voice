@@ -1,6 +1,6 @@
 # Foodly AI backend
 
-This folder contains the Foodly AI API for **one** fictional restaurant: **Foodly AI Restaurant** in Faisalabad. It includes the menu, secure account, cart, and mock ordering features used by the Flutter app. It deliberately contains no OpenAI, AI chat, voice, or real payment processing.
+This folder contains the Foodly AI API for **one** fictional restaurant: **Foodly AI Restaurant** in Faisalabad. It includes the menu, secure account, cart, mock ordering, and authenticated AI chat features used by the Flutter app. AI requests are made only by this backend through OpenRouter; the Flutter app never receives an AI API key.
 
 ## API endpoints
 
@@ -22,6 +22,11 @@ Every API response uses `{ "success": true, "data": ... }` for data or `{ "succe
 | POST | `/api/orders` | Creates a mock cash-on-delivery order from the signed-in user's cart. |
 | GET | `/api/orders` | Returns the signed-in user's orders. |
 | GET | `/api/orders/:id` | Returns one of the signed-in user's orders. |
+| POST | `/api/conversations` | Creates a signed-in user's AI conversation. |
+| GET | `/api/conversations` | Returns the signed-in user's AI conversation history. |
+| GET | `/api/conversations/:id` | Returns one saved conversation and its messages. |
+| POST | `/api/conversations/:id/messages` | Sends a message to Foodly AI and saves its reply. |
+| DELETE | `/api/conversations/:id` | Deletes one saved conversation. |
 
 Food filters may be combined:
 
@@ -44,6 +49,17 @@ PORT=5000
 ```
 
 `backend/.env` is ignored by Git. Never commit or share its contents.
+
+## AI chat setup (Phase 8)
+
+In the existing private `backend/.env` file, add the following lines and replace only the key placeholder with your OpenRouter key:
+
+```env
+OPENROUTER_API_KEY=your_openrouter_api_key_here
+OPENROUTER_MODEL=openai/gpt-5-mini
+```
+
+Do not place this key in Flutter, source files, or GitHub. Foodly AI sends one OpenRouter request per normal chat message, uses recent saved conversation messages for context, and grounds answers in the live MongoDB menu.
 
 ## STEP 1 — Start the backend
 
