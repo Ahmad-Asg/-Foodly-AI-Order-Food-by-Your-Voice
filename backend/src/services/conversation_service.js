@@ -66,7 +66,12 @@ export async function sendConversationMessage(userId, conversationId, content) {
   await conversation.save();
 
   const history = await Message.find({ conversationId: conversation._id }).sort({ timestamp: 1 }).lean();
-  const reply = await getFoodlyAiReply(history);
+  const reply = await getFoodlyAiReply({
+    messages: history,
+    userId,
+    conversation,
+    latestUserMessage: cleanContent,
+  });
   const assistantMessage = await Message.create({ conversationId: conversation._id, role: 'assistant', content: reply });
   conversation.updatedAt = assistantMessage.timestamp;
   await conversation.save();

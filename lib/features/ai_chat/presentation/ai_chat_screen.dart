@@ -4,9 +4,10 @@ import '../../../core/services/foodly_api_service.dart';
 import '../../../core/theme/app_theme.dart';
 
 class AiChatScreen extends StatefulWidget {
-  const AiChatScreen({super.key, required this.api});
+  const AiChatScreen({super.key, required this.api, this.onCartChanged});
 
   final FoodlyApiService api;
+  final Future<void> Function()? onCartChanged;
 
   @override
   State<AiChatScreen> createState() => _AiChatScreenState();
@@ -110,6 +111,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
         conversationId: conversationId,
         message: message,
       );
+      await widget.onCartChanged?.call();
       if (!mounted) return;
       setState(
         () => _messages = [
@@ -322,15 +324,25 @@ class _MessageBubble extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         border: isUser ? null : Border.all(color: Colors.black12),
       ),
-      child: Text(
-        _cleanDisplayText(content),
-        style: TextStyle(color: isUser ? Colors.white : FoodlyColors.dark),
+      child: Text.rich(
+        TextSpan(
+          style: TextStyle(color: isUser ? Colors.white : FoodlyColors.dark),
+          children: _displaySpans(content),
+        ),
       ),
     ),
   );
 
-  String _cleanDisplayText(String value) =>
-      value.replaceAll('**', '').replaceAll('`', '');
+  List<TextSpan> _displaySpans(String value) {
+    final parts = value.replaceAll('`', '').split('**');
+    return List.generate(
+      parts.length,
+      (index) => TextSpan(
+        text: parts[index],
+        style: index.isOdd ? const TextStyle(fontWeight: FontWeight.w700) : null,
+      ),
+    );
+  }
 }
 
 class _ThinkingBubble extends StatelessWidget {

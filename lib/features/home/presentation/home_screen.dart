@@ -6,13 +6,16 @@ import '../../ai_chat/presentation/ai_voice_screen.dart';
 import '../../../core/theme/app_theme.dart';
 
 class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key, required this.api});
+  const HomeScreen({super.key, required this.api, this.onCartChanged});
 
   final FoodlyApiService api;
+  final Future<void> Function()? onCartChanged;
 
   void _openChat(BuildContext context) {
     Navigator.of(context)
-        .push(MaterialPageRoute(builder: (_) => _ChatPage(api: api)));
+        .push(MaterialPageRoute(
+          builder: (_) => _ChatPage(api: api, onCartChanged: onCartChanged),
+        ));
   }
 
   void _openVoice(BuildContext context) {
@@ -169,9 +172,10 @@ class HomeScreen extends StatelessWidget {
 
 // Chat Page
 class _ChatPage extends StatelessWidget {
-  const _ChatPage({required this.api});
+  const _ChatPage({required this.api, this.onCartChanged});
 
   final FoodlyApiService api;
+  final Future<void> Function()? onCartChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -179,7 +183,7 @@ class _ChatPage extends StatelessWidget {
     // may not have const constructors.
     return Scaffold(
       appBar: AppBar(title: const Text('Chat with Foodly AI')),
-      body: AiChatScreen(api: api),
+      body: AiChatScreen(api: api, onCartChanged: onCartChanged),
     );
   }
 }

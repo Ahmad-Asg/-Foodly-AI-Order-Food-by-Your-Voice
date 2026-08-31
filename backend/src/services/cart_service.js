@@ -57,6 +57,9 @@ export async function getCartDetails(userId) {
 }
 
 async function saveCalculatedTotals(cart) {
+  // Persist item mutations before reading the cart again for price/totals.
+  // This keeps the REST response and AI tool result in sync with MongoDB.
+  await cart.save();
   const details = await getCartDetails(cart.userId);
   cart.subtotal = details.subtotal;
   cart.deliveryFee = details.deliveryFee;
