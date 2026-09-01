@@ -7,6 +7,7 @@ const recentMessageLimit = 12;
 const maximumToolRounds = 4;
 const defaultModel = 'openai/gpt-5-mini';
 const maxCompletionTokens = 700;
+const menuRequestPattern = /\b(burger|burgers|pizza|pizzas|biryani|karahi|bbq|kebab|kebabs|wrap|wraps|shawarma|sandwich|sandwiches|fries|dessert|desserts|drink|drinks|menu|suggest|recommend)\b/i;
 
 const foodlyInstructions = `You are Foodly AI for one restaurant in Faisalabad. Use backend tools for every menu, food-detail, cart total, cart change, and order action. For every recommendation or request for a named food/category, call search_food before replying. Never say an item is unavailable unless search_food returned no matching live menu items. Tool results are the only source of truth: never invent food, prices, availability, cart state, totals, or order status.
 
@@ -14,7 +15,7 @@ Before adding, updating, or removing an item, resolve it with a trusted tool res
 
 You can ask to clear a cart or place an order through tools, but the backend requires an explicit user confirmation immediately after its confirmation request. For an order, obtain a delivery address first. If a tool says requiresConfirmation, show the current total/items concisely and ask the user to confirm. If it says requiresDeliveryAddress, ask for the delivery address. If it says emptyCart, explain that the cart is empty.
 
-Keep answers friendly and concise. Understand English, Roman Urdu, and mixed language; match the user's style when practical. When mentioning a menu item with its price, use Markdown bold: **Item name** — **Rs. 650**.`;
+Keep answers friendly and concise. Understand English, Roman Urdu, and mixed language; match the user's style when practical. All money is Pakistani rupees: always write **Rs. 800** and never use the ₹ symbol or INR. When mentioning a menu item with its price, use Markdown bold: **Item name** — **Rs. 650**.`;
 
 function cleanText(value) {
   return String(value ?? '').trim();
@@ -33,7 +34,24 @@ function addBoldFormatting(value, expression) {
 }
 
 function formatPrices(reply) {
-  return addBoldFormatting(reply, /\b(?:Rs\.?|PKR)\s?[\d,]+/gi);
+  const pakistaniCurrency = reply
+    .replace(/[₹₨]\s*/g, 'Rs. ')
+    .replace(/\bINR\s*/gi, 'Rs. ')
+    .replace(/\bIndian rupees?\b/gi, 'Pakistani rupees');
+  return addBoldFormatting(pakistaniCurrency, /\b(?:Rs\.?|PKR)\s?[\d,]+/gi);
+}
+
+function isMenuRequest(message) {
+  return menuRequestPattern.test(cleanText(message));
+}
+
+function incorrectlyClaimsNoMenuMatch(reply) {
+  return /\b(no|didn't find|couldn't find|cannot find|nahi|nahin)\b[\s\S]{0,100}\b(burger|burgers|item|items|food|foods|available|mila)\b|\bkuch bhi nahi mila\b/i.test(reply);
+}
+
+function menuFallback(items) {
+  const choices = items.slice(0, 5).map((item) => `**${item.name}** — **Rs. ${item.price}**`).join('\n');
+  return `Here are available options from the live menu:\n${choices}`;
 }
 
 function getClient() {
@@ -59,13 +77,19 @@ function providerError(error) {
 
 export async function getFoodlyAiReply({ messages, userId, conversation, latestUserMessage }) {
   const modelMessages = [{ role: 'system', content: foodlyInstructions }, ...toModelMessages(messages)];
+  const mustVerifyMenu = isMenuRequest(latestUserMessage);
+  let verifiedMenuMatches = [];
   try {
     for (let round = 0; round < maximumToolRounds; round += 1) {
       const completion = await getClient().chat.completions.create({
         model: process.env.OPENROUTER_MODEL || defaultModel,
         messages: modelMessages,
         tools: foodlyTools,
-        tool_choice: 'auto',
+        // A menu request must begin with trusted live-menu data, so the model
+        // cannot incorrectly say an item is unavailable without searching.
+        tool_choice: mustVerifyMenu && round === 0
+          ? { type: 'function', function: { name: 'search_food' } }
+          : 'auto',
         max_completion_tokens: maxCompletionTokens,
         reasoning: { effort: 'minimal' },
         stream: false,
@@ -75,6 +99,7 @@ export async function getFoodlyAiReply({ messages, userId, conversation, latestU
       if (!assistant.tool_calls?.length) {
         const reply = formatPrices(cleanText(assistant.content));
         if (!reply) throw new AppError('Foodly AI returned an empty reply. Please try again.', 502);
+        if (verifiedMenuMatches.length && incorrectlyClaimsNoMenuMatch(reply)) return menuFallback(verifiedMenuMatches);
         return reply;
       }
       modelMessages.push({ role: 'assistant', content: assistant.content ?? '', tool_calls: assistant.tool_calls });
@@ -82,6 +107,7 @@ export async function getFoodlyAiReply({ messages, userId, conversation, latestU
         let arguments_ = {};
         try { arguments_ = JSON.parse(call.function.arguments || '{}'); } catch { arguments_ = {}; }
         const result = await executeAiTool({ name: call.function.name, arguments_, userId, conversation, latestUserMessage });
+        if (call.function.name === 'search_food' && result.ok && Array.isArray(result.data)) verifiedMenuMatches = result.data;
         modelMessages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(result) });
       }
     }
