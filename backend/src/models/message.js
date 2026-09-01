@@ -10,6 +10,7 @@ const messageSchema = new mongoose.Schema(
     },
     role: { type: String, enum: ['user', 'assistant'], required: true },
     content: { type: String, required: true, trim: true },
+    isVoiceInput: { type: Boolean, default: false },
     timestamp: { type: Date, default: Date.now },
   },
   { timestamps: false },
