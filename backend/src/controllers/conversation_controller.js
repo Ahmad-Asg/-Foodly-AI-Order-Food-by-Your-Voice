@@ -20,7 +20,7 @@ export const getById = asyncHandler(async (request, response) => {
 });
 
 export const sendMessage = asyncHandler(async (request, response) => {
-  response.status(200).json({ success: true, data: await sendConversationMessage(request.user._id, request.params.id, request.body.message) });
+  response.status(200).json({ success: true, data: await sendConversationMessage(request.user._id, request.params.id, request.body.message, request.body.isVoiceInput) });
 });
 
 export const remove = asyncHandler(async (request, response) => {
