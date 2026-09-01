@@ -1,9 +1,9 @@
 const ignoredWords = new Set([
-  'a', 'an', 'and', 'any', 'are', 'can', 'do', 'for', 'food', 'hai', 'have',
+  'a', 'an', 'and', 'any', 'are', 'can', 'do', 'for', 'food', 'hai', 'haan', 'have',
   'i', 'in', 'is', 'it', 'ka', 'ke', 'ki', 'koi', 'ko', 'kro', 'kuch', 'kya',
-  'mein', 'me', 'mujhe', 'nahi', 'nahin', 'of', 'option', 'options', 'please',
-  'show', 'suggest', 'the', 'to', 'wala', 'wali', 'you', 'your', 'andar', 'btao',
-  'dikhao', 'chahiye',
+  'kar', 'karo', 'krdo', 'mein', 'me', 'menu', 'mil', 'mujhe', 'nahi', 'nahin', 'of',
+  'option', 'options', 'please', 'restaurant', 'show', 'suggest', 'the', 'to',
+  'raha', 'rahe', 'rahi', 'wala', 'wali', 'you', 'your', 'andar', 'btao', 'dikhao', 'chahiye',
 ]);
 
 export function normalizeFoodSearchText(value) {

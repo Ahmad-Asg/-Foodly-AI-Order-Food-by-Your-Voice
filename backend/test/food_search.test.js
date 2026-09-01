@@ -19,6 +19,8 @@ test('food search keeps meaningful words from natural-language requests', () => 
   assert.deepEqual(foodSearchTokens('Show me drinks, please'), ['drink']);
   assert.deepEqual(foodSearchTokens('BBQ mein kya hai?'), ['bbq']);
   assert.deepEqual(foodSearchTokens('Pakistani food dikhao'), ['pakistani']);
+  assert.deepEqual(foodSearchTokens('Suggest me a burger'), ['burger']);
+  assert.deepEqual(foodSearchTokens('Mujhe menu mein burgers nahin mil rahe'), ['burger']);
 });
 
 test('food search expressions match relevant food fields without exact capitalization', () => {

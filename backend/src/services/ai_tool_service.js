@@ -78,6 +78,15 @@ async function searchFood(arguments_) {
   return foods.map((food) => compactFood(food, categoryNames.get(food.categoryId.toString()) ?? 'Uncategorized'));
 }
 
+// This uses the same database-backed search as the AI tool. It lets the
+// conversation service verify a natural-language menu request even if a model
+// fails to select search_food for that turn.
+export async function findMenuMatchesForMessage(message) {
+  const query = String(message ?? '').trim();
+  if (!query || query.length > 80 || foodSearchTokens(query).length === 0) return [];
+  return searchFood({ query, availableOnly: true });
+}
+
 async function getFoodDetails(foodItemId) {
   if (!mongoose.isValidObjectId(foodItemId)) throw new AppError('Food item ID is invalid.', 400);
   const restaurant = await getPrimaryRestaurant();

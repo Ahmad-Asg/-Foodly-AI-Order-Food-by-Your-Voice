@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 
 import { AppError } from '../utils/app_error.js';
-import { executeAiTool, foodlyTools } from './ai_tool_service.js';
+import { executeAiTool, findMenuMatchesForMessage, foodlyTools } from './ai_tool_service.js';
 
 const recentMessageLimit = 12;
 const maximumToolRounds = 4;
@@ -37,7 +37,7 @@ function formatPrices(reply) {
 }
 
 function incorrectlyClaimsNoMenuMatch(reply) {
-  return /\b(no|didn't find|couldn't find|cannot find|nahi|nahin)\b[\s\S]{0,100}\b(burger|burgers|item|items|food|foods|available|mila)\b|\bkuch bhi nahi mila\b/i.test(reply);
+  return /\b(no|didn't find|couldn't find|cannot find|nahi|nahin)\b[\s\S]{0,100}\b(item|items|food|foods|available|mila|mil)\b|\b(item|items|food|foods|burger|burgers|pizza|pizzas|drink|drinks|dessert|desserts)\b[\s\S]{0,100}\b(no|not|nahi|nahin|mil)\b|\bkuch bhi nahi mila\b/i.test(reply);
 }
 
 function menuFallback(items) {
@@ -70,6 +70,13 @@ export async function getFoodlyAiReply({ messages, userId, conversation, latestU
   const modelMessages = [{ role: 'system', content: foodlyInstructions }, ...toModelMessages(messages)];
   let verifiedMenuMatches = [];
   try {
+    // A database read is cheap and keeps menu facts authoritative even when a
+    // provider chooses not to call a tool for a natural-language request.
+    verifiedMenuMatches = await findMenuMatchesForMessage(latestUserMessage);
+    if (verifiedMenuMatches.length) {
+      const menuPreview = verifiedMenuMatches.map(({ name, price, category }) => ({ name, price, category }));
+      modelMessages[0].content += `\nVerified live menu matches for the latest user message: ${JSON.stringify(menuPreview)}. Use these matches and never say they are unavailable.`;
+    }
     for (let round = 0; round < maximumToolRounds; round += 1) {
       const completion = await getClient().chat.completions.create({
         model: process.env.OPENROUTER_MODEL || defaultModel,
