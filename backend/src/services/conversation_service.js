@@ -21,6 +21,7 @@ function toMessage(message) {
     id: message._id.toString(),
     role: message.role,
     content: message.content,
+    isVoiceInput: message.isVoiceInput === true,
     timestamp: message.timestamp,
   };
 }
@@ -58,10 +59,10 @@ export async function getConversation(userId, conversationId) {
   return { conversation: toConversationSummary(conversation), messages: messages.map(toMessage) };
 }
 
-export async function sendConversationMessage(userId, conversationId, content) {
+export async function sendConversationMessage(userId, conversationId, content, isVoiceInput = false) {
   const conversation = await getOwnedConversation(userId, conversationId);
   const cleanContent = validateMessage(content);
-  const userMessage = await Message.create({ conversationId: conversation._id, role: 'user', content: cleanContent });
+  const userMessage = await Message.create({ conversationId: conversation._id, role: 'user', content: cleanContent, isVoiceInput: isVoiceInput === true });
   if (conversation.title === 'New Conversation') conversation.title = titleFromMessage(cleanContent);
   await conversation.save();
 
