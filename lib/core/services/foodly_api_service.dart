@@ -106,9 +106,10 @@ class FoodlyApiService {
   Future<Map<String, dynamic>> sendConversationMessage({
     required String conversationId,
     required String message,
+    bool isVoiceInput = false,
   }) => _postObject(
     'conversations/$conversationId/messages',
-    body: {'message': message},
+    body: {'message': message, 'isVoiceInput': isVoiceInput},
   );
 
   Future<Map<String, dynamic>> deleteConversation(String id) =>
