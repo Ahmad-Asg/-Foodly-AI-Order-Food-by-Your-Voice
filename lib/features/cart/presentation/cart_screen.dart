@@ -39,7 +39,21 @@ class _CartScreenState extends State<CartScreen> {
         animation: widget.cart,
         builder: (_, _) {
           if (widget.cart.isLoading && widget.cart.items.isEmpty) return const Center(child: CircularProgressIndicator());
-          if (widget.cart.errorMessage != null && widget.cart.items.isEmpty) return Center(child: Text(widget.cart.errorMessage!));
+          if (widget.cart.errorMessage != null && widget.cart.items.isEmpty) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(widget.cart.errorMessage!, textAlign: TextAlign.center),
+                    const SizedBox(height: 12),
+                    OutlinedButton(onPressed: widget.cart.load, child: const Text('Try again')),
+                  ],
+                ),
+              ),
+            );
+          }
           if (widget.cart.items.isEmpty) return const _EmptyCart();
           return ListView(
             padding: const EdgeInsets.all(16),

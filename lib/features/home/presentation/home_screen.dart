@@ -2,18 +2,20 @@ import 'package:flutter/material.dart';
 
 import '../../../core/services/foodly_api_service.dart';
 import '../../ai_chat/presentation/ai_chat_screen.dart';
+import '../../auth/data/auth_session.dart';
 import '../../../core/theme/app_theme.dart';
 
 class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key, required this.api, this.onCartChanged});
+  const HomeScreen({super.key, required this.api, required this.user, this.onCartChanged});
 
   final FoodlyApiService api;
+  final AuthUser user;
   final Future<void> Function()? onCartChanged;
 
-  void _openChat(BuildContext context) {
+  void _openChat(BuildContext context, {String? initialMessage}) {
     Navigator.of(context)
         .push(MaterialPageRoute(
-          builder: (_) => _ChatPage(api: api, onCartChanged: onCartChanged),
+          builder: (_) => _ChatPage(api: api, onCartChanged: onCartChanged, initialMessage: initialMessage),
         ));
   }
 
@@ -35,7 +37,7 @@ class HomeScreen extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
         children: [
           Text(
-            'Good evening, Ahmad!',
+            'Good evening, ${user.name}!',
             style: Theme.of(context).textTheme.headlineSmall
                 ?.copyWith(fontWeight: FontWeight.bold),
           ),
@@ -124,14 +126,14 @@ class HomeScreen extends StatelessWidget {
           ),
           const SizedBox(height: 12),
 
-          const Wrap(
+          Wrap(
             spacing: 10,
             runSpacing: 10,
             children: [
-              _PromptChip(label: 'Find me something spicy'),
-              _PromptChip(label: 'I have Rs. 1000'),
-              _PromptChip(label: 'What should I eat?'),
-              _PromptChip(label: 'Recommend dinner for two'),
+              _PromptChip(label: 'Find me something spicy', onPressed: () => _openChat(context, initialMessage: 'Suggest me something spicy')),
+              _PromptChip(label: 'I have Rs. 1000', onPressed: () => _openChat(context, initialMessage: 'What can I eat under Rs. 1000?')),
+              _PromptChip(label: 'What should I eat?', onPressed: () => _openChat(context, initialMessage: 'What should I eat?')),
+              _PromptChip(label: 'Recommend dinner for two', onPressed: () => _openChat(context, initialMessage: 'Recommend dinner for two')),
             ],
           ),
 
@@ -177,37 +179,34 @@ class HomeScreen extends StatelessWidget {
 
 // Chat Page
 class _ChatPage extends StatelessWidget {
-  const _ChatPage({required this.api, this.onCartChanged});
+  const _ChatPage({required this.api, this.onCartChanged, this.initialMessage});
 
   final FoodlyApiService api;
   final Future<void> Function()? onCartChanged;
+  final String? initialMessage;
 
   @override
   Widget build(BuildContext context) {
-    // Removed "const" from Scaffold because AppBar/AiChatScreen
-    // may not have const constructors.
     return Scaffold(
       appBar: AppBar(title: const Text('Chat with Foodly AI')),
-      body: AiChatScreen(api: api, onCartChanged: onCartChanged),
+      body: AiChatScreen(api: api, onCartChanged: onCartChanged, initialMessage: initialMessage),
     );
   }
 }
 
 // Prompt Chip
 class _PromptChip extends StatelessWidget {
-  const _PromptChip({required this.label});
+  const _PromptChip({required this.label, required this.onPressed});
 
   final String label;
+  final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
     return ActionChip(
       avatar: const Icon(Icons.auto_awesome_rounded, size: 17),
       label: Text(label),
-      onPressed: () {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('AI prompt saved: "$label"')));
-      },
+      onPressed: onPressed,
     );
   }
 }

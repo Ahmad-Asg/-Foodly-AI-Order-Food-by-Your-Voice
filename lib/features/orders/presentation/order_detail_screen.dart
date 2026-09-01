@@ -24,7 +24,18 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     final order = _order;
     return Scaffold(
       appBar: AppBar(title: const Text('Order details')),
-      body: order == null ? Center(child: _error == null ? const CircularProgressIndicator() : Text(_error!)) : ListView(
+      body: order == null ? Center(
+        child: _error == null
+            ? const CircularProgressIndicator()
+            : Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(padding: const EdgeInsets.symmetric(horizontal: 24), child: Text(_error!, textAlign: TextAlign.center)),
+                  const SizedBox(height: 12),
+                  OutlinedButton(onPressed: _load, child: const Text('Try again')),
+                ],
+              ),
+      ) : ListView(
         padding: const EdgeInsets.all(20),
         children: [
           Text('Order #${(order['id'] as String).substring(0, 8)}', style: Theme.of(context).textTheme.titleLarge),

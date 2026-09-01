@@ -4,20 +4,12 @@ import { Category } from '../models/category.js';
 import { FoodItem } from '../models/food_item.js';
 import { AppError } from '../utils/app_error.js';
 import { addCartItem, clearCart, getCartDetails, removeCartItem, updateCartItem } from './cart_service.js';
+import { categoryMatchesFoodSearch, foodSearchExpressions, foodSearchTokens } from './food_search.js';
 import { createOrderFromCart } from './order_service.js';
 import { getPrimaryRestaurant } from './restaurant_service.js';
 
 const confirmationPattern = /^(yes|y|haan|han|ji|confirm|place it|kar do|kardo|krdo)( please| na)?$/i;
 const allowedSpiceLevels = new Set(['none', 'mild', 'medium', 'hot', 'extra_hot', 'spicy']);
-
-function escapeRegularExpression(value) {
-  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-function normalizeCategoryName(value) {
-  const normalized = String(value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
-  return normalized.endsWith('s') ? normalized.slice(0, -1) : normalized;
-}
 
 export const foodlyTools = [
   { type: 'function', function: { name: 'search_food', description: 'Search the current restaurant menu before recommending or changing an item.', parameters: { type: 'object', properties: { query: { type: 'string' }, category: { type: 'string' }, minPrice: { type: 'number' }, maxPrice: { type: 'number' }, spiceLevel: { type: 'string' }, dietaryPreference: { type: 'string' }, availableOnly: { type: 'boolean' } }, additionalProperties: false } } },
@@ -60,27 +52,22 @@ async function searchFood(arguments_) {
   }
   if (arguments_.dietaryPreference) filter.dietaryTags = String(arguments_.dietaryPreference).toLowerCase();
   if (arguments_.category) {
-    const requestedCategory = normalizeCategoryName(arguments_.category);
-    const category = categories.find((candidate) => normalizeCategoryName(candidate.name) === requestedCategory);
+    const category = categories.find((candidate) => categoryMatchesFoodSearch(candidate.name, arguments_.category));
     if (!category) return [];
     filter.categoryId = category._id;
   }
   if (arguments_.query) {
     const query = String(arguments_.query).trim();
     if (query.length > 80) throw new AppError('Food search text is too long.', 400);
-    // Models sometimes pass a full spoken sentence (for example, "mujhe
-    // burgers suggest karo") rather than just "burger". Detect the menu
-    // category inside that sentence so it still returns the correct items.
-    const categoryMentionedInQuery = categories.find((candidate) => {
-      const normalizedName = normalizeCategoryName(candidate.name);
-      return new RegExp(`\\b${escapeRegularExpression(normalizedName)}s?\\b`, 'i').test(query);
-    });
+    // Models may pass a full spoken sentence rather than only a food name.
+    // Match any live MongoDB category found in that sentence, then retain the
+    // meaningful query words for name, description, and ingredient matching.
+    const categoryMentionedInQuery = categories.find((candidate) => categoryMatchesFoodSearch(candidate.name, query));
     if (!filter.categoryId && categoryMentionedInQuery) filter.categoryId = categoryMentionedInQuery._id;
-    const effectiveQuery = categoryMentionedInQuery ? normalizeCategoryName(categoryMentionedInQuery.name) : query;
-    const variants = [effectiveQuery];
-    if (effectiveQuery.length > 3 && effectiveQuery.endsWith('s')) variants.push(effectiveQuery.slice(0, -1));
-    const expressions = variants.map((value) => new RegExp(escapeRegularExpression(value), 'i'));
-    filter.$or = expressions.flatMap((expression) => [
+    const categoryWords = new Set(categoryMentionedInQuery ? foodSearchTokens(categoryMentionedInQuery.name) : []);
+    const remainingQuery = foodSearchTokens(query).filter((word) => !categoryWords.has(word)).join(' ');
+    const expressions = foodSearchExpressions(remainingQuery || (categoryMentionedInQuery?.name ?? query));
+    if (expressions.length) filter.$or = expressions.flatMap((expression) => [
       { name: expression },
       { description: expression },
       { ingredients: expression },

@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import { Category } from '../models/category.js';
 import { FoodItem } from '../models/food_item.js';
 import { getPrimaryRestaurant } from '../services/restaurant_service.js';
+import { categoryMatchesFoodSearch } from '../services/food_search.js';
 import { AppError } from '../utils/app_error.js';
 import { asyncHandler } from '../utils/async_handler.js';
 
@@ -51,11 +52,8 @@ async function buildFoodFilter(query) {
   if (query.category !== undefined) {
     const categoryName = String(query.category).trim();
     if (!categoryName) throw new AppError('category cannot be empty.', 400);
-    const category = await Category.findOne({
-      restaurantId: restaurant._id,
-      name: categoryName,
-      isAvailable: true,
-    }).lean();
+    const categories = await Category.find({ restaurantId: restaurant._id, isAvailable: true }).lean();
+    const category = categories.find((candidate) => categoryMatchesFoodSearch(candidate.name, categoryName));
     if (!category) return { filter: { ...filter, categoryId: null } };
     filter.categoryId = category._id;
   }

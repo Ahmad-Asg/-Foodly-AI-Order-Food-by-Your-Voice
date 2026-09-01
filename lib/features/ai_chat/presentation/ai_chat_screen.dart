@@ -11,11 +11,18 @@ String _pakistaniCurrency(String value) => value
     .replaceAll(RegExp(r'\bIndian rupees?\b', caseSensitive: false), 'Pakistani rupees');
 
 class AiChatScreen extends StatefulWidget {
-  const AiChatScreen({super.key, required this.api, this.onCartChanged, this.startListening = false});
+  const AiChatScreen({
+    super.key,
+    required this.api,
+    this.onCartChanged,
+    this.startListening = false,
+    this.initialMessage,
+  });
 
   final FoodlyApiService api;
   final Future<void> Function()? onCartChanged;
   final bool startListening;
+  final String? initialMessage;
 
   @override
   State<AiChatScreen> createState() => _AiChatScreenState();
@@ -41,6 +48,11 @@ class _AiChatScreenState extends State<AiChatScreen> {
     _loadConversations();
     _tts.setSpeechRate(0.46);
     if (widget.startListening) WidgetsBinding.instance.addPostFrameCallback((_) => _toggleListening());
+    if (widget.initialMessage?.trim().isNotEmpty == true) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _sendMessage(suggestedMessage: widget.initialMessage),
+      );
+    }
   }
 
   @override

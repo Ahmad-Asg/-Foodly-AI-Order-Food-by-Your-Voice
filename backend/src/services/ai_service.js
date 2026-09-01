@@ -7,7 +7,6 @@ const recentMessageLimit = 12;
 const maximumToolRounds = 4;
 const defaultModel = 'openai/gpt-5-mini';
 const maxCompletionTokens = 700;
-const menuRequestPattern = /\b(burger|burgers|pizza|pizzas|biryani|karahi|bbq|kebab|kebabs|wrap|wraps|shawarma|sandwich|sandwiches|fries|dessert|desserts|drink|drinks|menu|suggest|recommend)\b/i;
 
 const foodlyInstructions = `You are Foodly AI for one restaurant in Faisalabad. Use backend tools for every menu, food-detail, cart total, cart change, and order action. For every recommendation or request for a named food/category, call search_food before replying. Never say an item is unavailable unless search_food returned no matching live menu items. Tool results are the only source of truth: never invent food, prices, availability, cart state, totals, or order status.
 
@@ -19,10 +18,6 @@ Keep answers friendly and concise. Understand English, Roman Urdu, and mixed lan
 
 function cleanText(value) {
   return String(value ?? '').trim();
-}
-
-function escapeRegularExpression(value) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function addBoldFormatting(value, expression) {
@@ -39,10 +34,6 @@ function formatPrices(reply) {
     .replace(/\bINR\s*/gi, 'Rs. ')
     .replace(/\bIndian rupees?\b/gi, 'Pakistani rupees');
   return addBoldFormatting(pakistaniCurrency, /\b(?:Rs\.?|PKR)\s?[\d,]+/gi);
-}
-
-function isMenuRequest(message) {
-  return menuRequestPattern.test(cleanText(message));
 }
 
 function incorrectlyClaimsNoMenuMatch(reply) {
@@ -77,7 +68,6 @@ function providerError(error) {
 
 export async function getFoodlyAiReply({ messages, userId, conversation, latestUserMessage }) {
   const modelMessages = [{ role: 'system', content: foodlyInstructions }, ...toModelMessages(messages)];
-  const mustVerifyMenu = isMenuRequest(latestUserMessage);
   let verifiedMenuMatches = [];
   try {
     for (let round = 0; round < maximumToolRounds; round += 1) {
@@ -85,11 +75,7 @@ export async function getFoodlyAiReply({ messages, userId, conversation, latestU
         model: process.env.OPENROUTER_MODEL || defaultModel,
         messages: modelMessages,
         tools: foodlyTools,
-        // A menu request must begin with trusted live-menu data, so the model
-        // cannot incorrectly say an item is unavailable without searching.
-        tool_choice: mustVerifyMenu && round === 0
-          ? { type: 'function', function: { name: 'search_food' } }
-          : 'auto',
+        tool_choice: 'auto',
         max_completion_tokens: maxCompletionTokens,
         reasoning: { effort: 'minimal' },
         stream: false,

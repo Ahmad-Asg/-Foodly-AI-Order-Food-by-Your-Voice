@@ -32,7 +32,7 @@ class _AppShellState extends State<AppShell> {
   final _ordersKey = GlobalKey<OrdersScreenState>();
 
   late final List<Widget> _pages = [
-    HomeScreen(api: widget.api, onCartChanged: widget.cart.load),
+    HomeScreen(api: widget.api, user: widget.user, onCartChanged: widget.cart.load),
     MenuScreen(api: widget.api, cart: widget.cart),
     AiChatScreen(api: widget.api, onCartChanged: widget.cart.load),
     OrdersScreen(key: _ordersKey, api: widget.api),
