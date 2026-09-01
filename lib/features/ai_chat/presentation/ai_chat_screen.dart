@@ -1,13 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_tts/flutter_tts.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
 
 import '../../../core/services/foodly_api_service.dart';
 import '../../../core/theme/app_theme.dart';
 
+String _pakistaniCurrency(String value) => value
+    .replaceAll(RegExp(r'[₹₨]\s*'), 'Rs. ')
+    .replaceAll(RegExp(r'\bINR\s*', caseSensitive: false), 'Rs. ')
+    .replaceAll(RegExp(r'\bIndian rupees?\b', caseSensitive: false), 'Pakistani rupees');
+
 class AiChatScreen extends StatefulWidget {
-  const AiChatScreen({super.key, required this.api, this.onCartChanged});
+  const AiChatScreen({super.key, required this.api, this.onCartChanged, this.startListening = false});
 
   final FoodlyApiService api;
   final Future<void> Function()? onCartChanged;
+  final bool startListening;
 
   @override
   State<AiChatScreen> createState() => _AiChatScreenState();
@@ -16,22 +24,31 @@ class AiChatScreen extends StatefulWidget {
 class _AiChatScreenState extends State<AiChatScreen> {
   final _controller = TextEditingController();
   final _scrollController = ScrollController();
+  final _speech = stt.SpeechToText();
+  final _tts = FlutterTts();
   List<dynamic> _conversations = const [];
   List<dynamic> _messages = const [];
   String? _conversationId;
   bool _isThinking = false;
   bool _isLoadingHistory = true;
+  bool _isListening = false;
+  bool _isSendingVoice = false;
+  String _speechLocale = 'en_US';
 
   @override
   void initState() {
     super.initState();
     _loadConversations();
+    _tts.setSpeechRate(0.46);
+    if (widget.startListening) WidgetsBinding.instance.addPostFrameCallback((_) => _toggleListening());
   }
 
   @override
   void dispose() {
     _controller.dispose();
     _scrollController.dispose();
+    _speech.stop();
+    _tts.stop();
     super.dispose();
   }
 
@@ -51,6 +68,69 @@ class _AiChatScreenState extends State<AiChatScreen> {
         setState(() => _isLoadingHistory = false);
       }
     }
+  }
+
+  Future<void> _toggleListening() async {
+    if (_isListening) {
+      await _speech.stop();
+      if (mounted) setState(() => _isListening = false);
+      return;
+    }
+    final available = await _speech.initialize(
+      onStatus: (status) {
+        if (mounted && (status == 'done' || status == 'notListening')) {
+          setState(() => _isListening = false);
+        }
+      },
+      onError: (error) {
+        if (!mounted) return;
+        setState(() => _isListening = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Voice input: ${error.errorMsg}')),
+        );
+      },
+    );
+    if (!available) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Speech recognition or microphone permission is unavailable. You can still type your message.')),
+        );
+      }
+      return;
+    }
+    setState(() => _isListening = true);
+    await _speech.listen(
+      listenOptions: stt.SpeechListenOptions(
+        localeId: _speechLocale,
+        listenFor: const Duration(seconds: 30),
+        pauseFor: const Duration(seconds: 4),
+        partialResults: true,
+      ),
+      onResult: (result) {
+        if (!mounted || result.recognizedWords.trim().isEmpty) return;
+        if (result.finalResult) _sendVoiceMessage(result.recognizedWords);
+      },
+    );
+  }
+
+  Future<void> _sendVoiceMessage(String transcript) async {
+    if (_isSendingVoice || _isThinking || transcript.trim().isEmpty) return;
+    setState(() {
+      _isSendingVoice = true;
+      _isListening = false;
+    });
+    await _speech.stop();
+    await _sendMessage(suggestedMessage: transcript, isVoiceInput: true);
+    if (mounted) setState(() => _isSendingVoice = false);
+  }
+
+  Future<void> _speak(String text) async {
+    await _tts.stop();
+    final language = RegExp(r'[\u0600-\u06FF]').hasMatch(text) ? 'ur_PK' : 'en_US';
+    if (await _tts.isLanguageAvailable(language) == true) {
+      await _tts.setLanguage(language);
+    }
+    await _tts.speak(_pakistaniCurrency(text).replaceAll('**', '').replaceAll('`', ''));
   }
 
   Future<void> _openConversation(String id) async {
@@ -82,7 +162,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
     });
   }
 
-  Future<void> _sendMessage([String? suggestedMessage]) async {
+  Future<void> _sendMessage({String? suggestedMessage, bool isVoiceInput = false}) async {
     final message = (suggestedMessage ?? _controller.text).trim();
     if (message.isEmpty || _isThinking) return;
 
@@ -103,13 +183,14 @@ class _AiChatScreenState extends State<AiChatScreen> {
       setState(
         () => _messages = [
           ..._messages,
-          {'role': 'user', 'content': message},
+          {'role': 'user', 'content': message, 'isVoiceInput': isVoiceInput},
         ],
       );
       _scrollToNewest();
       final result = await widget.api.sendConversationMessage(
         conversationId: conversationId,
         message: message,
+        isVoiceInput: isVoiceInput,
       );
       await widget.onCartChanged?.call();
       if (!mounted) return;
@@ -186,16 +267,29 @@ class _AiChatScreenState extends State<AiChatScreen> {
                   onPressed: _showHistory,
                   icon: const Icon(Icons.history_rounded),
                 ),
+                PopupMenuButton<String>(
+                  tooltip: 'Voice language',
+                  icon: const Icon(Icons.language_rounded),
+                  onSelected: (locale) => setState(() => _speechLocale = locale),
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(value: 'en_US', child: Text('English')),
+                    PopupMenuItem(value: 'ur_PK', child: Text('Urdu')),
+                  ],
+                ),
               ],
             ),
           ),
           Expanded(child: _buildMessages()),
           if (_messages.isEmpty && !_isLoadingHistory)
-            _SuggestedPrompts(onSelected: _sendMessage),
+            _SuggestedPrompts(
+              onSelected: (message) => _sendMessage(suggestedMessage: message),
+            ),
           _ChatInput(
             controller: _controller,
             isSending: _isThinking,
-            onSend: _sendMessage,
+            isListening: _isListening,
+            onSend: () => _sendMessage(),
+            onMic: _toggleListening,
           ),
         ],
       ),
@@ -206,7 +300,11 @@ class _AiChatScreenState extends State<AiChatScreen> {
     if (_isLoadingHistory) {
       return const Center(child: CircularProgressIndicator());
     }
-    if (_messages.isEmpty) {
+    final visibleMessages = _messages.where((message) {
+      final item = message as Map<String, dynamic>;
+      return item['role'] != 'user' || item['isVoiceInput'] != true;
+    }).toList();
+    if (visibleMessages.isEmpty) {
       return const Center(
         child: Padding(
           padding: EdgeInsets.all(32),
@@ -231,15 +329,18 @@ class _AiChatScreenState extends State<AiChatScreen> {
     return ListView.builder(
       controller: _scrollController,
       padding: const EdgeInsets.all(16),
-      itemCount: _messages.length + (_isThinking ? 1 : 0),
+      itemCount: visibleMessages.length + (_isThinking ? 1 : 0),
       itemBuilder: (_, index) {
-        if (_isThinking && index == _messages.length) {
+        if (_isThinking && index == visibleMessages.length) {
           return const _ThinkingBubble();
         }
-        final message = _messages[index] as Map<String, dynamic>;
+        final message = visibleMessages[index] as Map<String, dynamic>;
         return _MessageBubble(
           content: message['content'] as String,
           isUser: message['role'] == 'user',
+          onSpeak: message['role'] == 'user'
+              ? null
+              : () => _speak(message['content'] as String),
         );
       },
     );
@@ -308,9 +409,10 @@ class _AiChatScreenState extends State<AiChatScreen> {
 }
 
 class _MessageBubble extends StatelessWidget {
-  const _MessageBubble({required this.content, required this.isUser});
+  const _MessageBubble({required this.content, required this.isUser, this.onSpeak});
   final String content;
   final bool isUser;
+  final VoidCallback? onSpeak;
 
   @override
   Widget build(BuildContext context) => Align(
@@ -324,17 +426,32 @@ class _MessageBubble extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         border: isUser ? null : Border.all(color: Colors.black12),
       ),
-      child: Text.rich(
-        TextSpan(
-          style: TextStyle(color: isUser ? Colors.white : FoodlyColors.dark),
-          children: _displaySpans(content),
-        ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text.rich(
+            TextSpan(
+              style: TextStyle(color: isUser ? Colors.white : FoodlyColors.dark),
+              children: _displaySpans(content),
+            ),
+          ),
+          if (onSpeak != null)
+            Align(
+              alignment: Alignment.centerRight,
+              child: IconButton(
+                tooltip: 'Speak reply',
+                onPressed: onSpeak,
+                icon: const Icon(Icons.volume_up_outlined),
+                iconSize: 20,
+              ),
+            ),
+        ],
       ),
     ),
   );
 
   List<TextSpan> _displaySpans(String value) {
-    final parts = value.replaceAll('`', '').split('**');
+    final parts = _pakistaniCurrency(value).replaceAll('`', '').split('**');
     return List.generate(
       parts.length,
       (index) => TextSpan(
@@ -360,7 +477,7 @@ class _ThinkingBubble extends StatelessWidget {
 
 class _SuggestedPrompts extends StatelessWidget {
   const _SuggestedPrompts({required this.onSelected});
-  final Future<void> Function([String?]) onSelected;
+  final Future<void> Function(String) onSelected;
 
   @override
   Widget build(BuildContext context) => SingleChildScrollView(
@@ -401,11 +518,15 @@ class _ChatInput extends StatelessWidget {
   const _ChatInput({
     required this.controller,
     required this.isSending,
+    required this.isListening,
     required this.onSend,
+    required this.onMic,
   });
   final TextEditingController controller;
   final bool isSending;
-  final Future<void> Function([String?]) onSend;
+  final bool isListening;
+  final Future<void> Function() onSend;
+  final Future<void> Function() onMic;
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -417,7 +538,7 @@ class _ChatInput extends StatelessWidget {
       textInputAction: TextInputAction.send,
       onSubmitted: (_) => onSend(),
       decoration: InputDecoration(
-        hintText: 'Ask Foodly AI...',
+        hintText: isListening ? 'Listening... speak your request' : 'Ask Foodly AI...',
         counterText: '',
         filled: true,
         fillColor: Colors.white,
@@ -425,9 +546,20 @@ class _ChatInput extends StatelessWidget {
           borderRadius: BorderRadius.circular(18),
           borderSide: BorderSide.none,
         ),
-        suffixIcon: IconButton(
-          onPressed: isSending ? null : () => onSend(),
-          icon: const Icon(Icons.send_rounded),
+        suffixIcon: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              tooltip: isListening ? 'Stop listening' : 'Speak',
+              onPressed: isSending ? null : onMic,
+              icon: Icon(isListening ? Icons.stop_circle_outlined : Icons.mic_none_rounded),
+              color: isListening ? FoodlyColors.primary : null,
+            ),
+            IconButton(
+              onPressed: isSending ? null : () => onSend(),
+              icon: const Icon(Icons.send_rounded),
+            ),
+          ],
         ),
       ),
     ),
