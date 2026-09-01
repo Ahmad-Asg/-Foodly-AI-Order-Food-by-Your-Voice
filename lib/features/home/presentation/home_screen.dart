@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../../core/services/foodly_api_service.dart';
 import '../../ai_chat/presentation/ai_chat_screen.dart';
-import '../../ai_chat/presentation/ai_voice_screen.dart';
 import '../../../core/theme/app_theme.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -20,7 +19,13 @@ class HomeScreen extends StatelessWidget {
 
   void _openVoice(BuildContext context) {
     Navigator.of(context)
-        .push(MaterialPageRoute(builder: (_) => const AiVoiceScreen()));
+        .push(MaterialPageRoute(
+          builder: (_) => AiChatScreen(
+            api: api,
+            onCartChanged: onCartChanged,
+            startListening: true,
+          ),
+        ));
   }
 
   @override
