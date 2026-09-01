@@ -14,6 +14,11 @@ function escapeRegularExpression(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+function normalizeCategoryName(value) {
+  const normalized = String(value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+  return normalized.endsWith('s') ? normalized.slice(0, -1) : normalized;
+}
+
 export const foodlyTools = [
   { type: 'function', function: { name: 'search_food', description: 'Search the current restaurant menu before recommending or changing an item.', parameters: { type: 'object', properties: { query: { type: 'string' }, category: { type: 'string' }, minPrice: { type: 'number' }, maxPrice: { type: 'number' }, spiceLevel: { type: 'string' }, dietaryPreference: { type: 'string' }, availableOnly: { type: 'boolean' } }, additionalProperties: false } } },
   { type: 'function', function: { name: 'get_food_details', description: 'Get trusted details for one menu item ID.', parameters: { type: 'object', properties: { foodItemId: { type: 'string' } }, required: ['foodItemId'], additionalProperties: false } } },
@@ -43,6 +48,7 @@ function clearPending(conversation) {
 
 async function searchFood(arguments_) {
   const restaurant = await getPrimaryRestaurant();
+  const categories = await Category.find({ restaurantId: restaurant._id }).lean();
   const filter = { restaurantId: restaurant._id };
   if (arguments_.availableOnly !== false) filter.isAvailable = true;
   if (arguments_.minPrice !== undefined || arguments_.maxPrice !== undefined) filter.price = {};
@@ -54,15 +60,25 @@ async function searchFood(arguments_) {
   }
   if (arguments_.dietaryPreference) filter.dietaryTags = String(arguments_.dietaryPreference).toLowerCase();
   if (arguments_.category) {
-    const category = await Category.findOne({ restaurantId: restaurant._id, name: new RegExp(`^${escapeRegularExpression(arguments_.category)}$`, 'i') }).lean();
+    const requestedCategory = normalizeCategoryName(arguments_.category);
+    const category = categories.find((candidate) => normalizeCategoryName(candidate.name) === requestedCategory);
     if (!category) return [];
     filter.categoryId = category._id;
   }
   if (arguments_.query) {
     const query = String(arguments_.query).trim();
     if (query.length > 80) throw new AppError('Food search text is too long.', 400);
-    const variants = [query];
-    if (query.length > 3 && query.endsWith('s')) variants.push(query.slice(0, -1));
+    // Models sometimes pass a full spoken sentence (for example, "mujhe
+    // burgers suggest karo") rather than just "burger". Detect the menu
+    // category inside that sentence so it still returns the correct items.
+    const categoryMentionedInQuery = categories.find((candidate) => {
+      const normalizedName = normalizeCategoryName(candidate.name);
+      return new RegExp(`\\b${escapeRegularExpression(normalizedName)}s?\\b`, 'i').test(query);
+    });
+    if (!filter.categoryId && categoryMentionedInQuery) filter.categoryId = categoryMentionedInQuery._id;
+    const effectiveQuery = categoryMentionedInQuery ? normalizeCategoryName(categoryMentionedInQuery.name) : query;
+    const variants = [effectiveQuery];
+    if (effectiveQuery.length > 3 && effectiveQuery.endsWith('s')) variants.push(effectiveQuery.slice(0, -1));
     const expressions = variants.map((value) => new RegExp(escapeRegularExpression(value), 'i'));
     filter.$or = expressions.flatMap((expression) => [
       { name: expression },
@@ -70,7 +86,7 @@ async function searchFood(arguments_) {
       { ingredients: expression },
     ]);
   }
-  const [foods, categories] = await Promise.all([FoodItem.find(filter).sort({ price: 1, name: 1 }).limit(12).lean(), Category.find({ restaurantId: restaurant._id }).lean()]);
+  const foods = await FoodItem.find(filter).sort({ price: 1, name: 1 }).limit(12).lean();
   const categoryNames = new Map(categories.map((category) => [category._id.toString(), category.name]));
   return foods.map((food) => compactFood(food, categoryNames.get(food.categoryId.toString()) ?? 'Uncategorized'));
 }
